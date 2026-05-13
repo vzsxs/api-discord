@@ -1,88 +1,83 @@
+require("dotenv").config();
 const express = require("express");
-const fs = require("node:fs");
-const path = require("node:path");
+const { MongoClient } = require("mongodb");
 
 const app = express();
 app.use(express.json());
 
-const DB_FILE = path.join(__dirname, "database.json");
+const PORT = process.env.PORT || 3000;
 
-let database = {};
+// 🔥 MONGO SETUP
+const client = new MongoClient(process.env.MONGO_URI);
+let db;
 
-// ================= CARGAR DB =================
-function loadDatabase() {
+// conectar Mongo
+async function connectDB() {
   try {
-    if (fs.existsSync(DB_FILE)) {
-      const raw = fs.readFileSync(DB_FILE, "utf8");
-      database = raw ? JSON.parse(raw) : {};
-      console.log("✅ Base cargada");
-    } else {
-      database = {};
-      console.log("🆕 Nueva base creada");
+    await client.connect();
+    db = client.db("api-discordia"); // nombre de tu DB
+    console.log("🚀 Mongo conectado");
+  } catch (err) {
+    console.error("❌ Error Mongo:", err);
+  }
+}
+
+connectDB();
+
+// -------------------
+// 🧠 GUARDAR PERFIL
+// -------------------
+app.post("/profile", async (req, res) => {
+  try {
+    const { robloxUserId, robloxUsername, roleTag } = req.body;
+
+    if (!robloxUserId) {
+      return res.status(400).json({ ok: false, error: "missing robloxUserId" });
     }
-  } catch (err) {
-    console.error("❌ Error cargando DB:", err);
-    database = {};
-  }
-}
 
-// ================= GUARDAR DB =================
-function saveDatabase() {
-  try {
-    fs.writeFileSync(
-      DB_FILE,
-      JSON.stringify(database, null, 2),
-      "utf8"
+    await db.collection("profiles").updateOne(
+      { robloxUserId },
+      {
+        $set: {
+          robloxUserId: String(robloxUserId),
+          robloxUsername: robloxUsername || "",
+          roleTag: roleTag || "Civil",
+        },
+      },
+      { upsert: true }
     );
+
+    console.log("💾 Guardado en Mongo:", robloxUserId);
+
+    res.json({ ok: true });
   } catch (err) {
-    console.error("❌ Error guardando DB:", err);
+    console.error("❌ Error /profile:", err);
+    res.status(500).json({ ok: false });
   }
-}
+});
 
-loadDatabase();
-
-// ================= POST PROFILE =================
-app.post("/profile", (req, res) => {
-  const { robloxUserId, robloxUsername, roleTag } = req.body;
-
-  if (!robloxUserId) {
-    return res.status(400).json({
-      ok: false,
-      error: "missing robloxUserId"
+// -------------------
+// 📥 LEER PERFIL
+// -------------------
+app.get("/profile/:id", async (req, res) => {
+  try {
+    const user = await db.collection("profiles").findOne({
+      robloxUserId: req.params.id,
     });
+
+    if (!user) {
+      return res.json({ ok: false });
+    }
+
+    res.json({ ok: true, profile: user });
+  } catch (err) {
+    res.status(500).json({ ok: false });
   }
-
-  database[String(robloxUserId)] = {
-    robloxUserId: String(robloxUserId),
-    robloxUsername: robloxUsername || "",
-    roleTag: roleTag || "Civil"
-  };
-
-  saveDatabase();
-
-  console.log("💾 Guardado:", database[String(robloxUserId)]);
-
-  res.json({
-    ok: true,
-    profile: database[String(robloxUserId)]
-  });
 });
 
-// ================= GET PROFILE =================
-app.get("/profile/:robloxUserId", (req, res) => {
-  const user = database[String(req.params.robloxUserId)];
-
-  if (!user) {
-    return res.json({ ok: false });
-  }
-
-  res.json({
-    ok: true,
-    profile: user
-  });
-});
-
-// ================= START =================
-app.listen(process.env.PORT || 3000, () => {
-  console.log("🚀 API lista");
+// -------------------
+// 🚀 START SERVER
+// -------------------
+app.listen(PORT, () => {
+  console.log(`🚀 API lista en puerto ${PORT}`);
 });
