@@ -6,49 +6,46 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// 🧠 memoria (base de datos simple)
+// base de datos simple en memoria
 const database = {};
 
-// -------------------
-// 💾 GUARDAR PERFIL
-// -------------------
+// guardar perfil
 app.post("/profile", (req, res) => {
-  const { robloxUserId, robloxUsername, roleTag } = req.body;
+  const { robloxUserId, robloxUsername, discordName, roleTag } = req.body;
 
   if (!robloxUserId) {
     return res.status(400).json({ ok: false, error: "missing robloxUserId" });
   }
 
-  database[robloxUserId] = {
+  database[String(robloxUserId)] = {
     robloxUserId: String(robloxUserId),
     robloxUsername: robloxUsername || "",
-    roleTag: roleTag || "Civil",
+    discordName: discordName || "",
+    roleTag: roleTag || "Civil"
   };
 
-  console.log("💾 Guardado:", database[robloxUserId]);
+  console.log("💾 Guardado:", database[String(robloxUserId)]);
 
   res.json({
     ok: true,
-    profile: database[robloxUserId],
+    profile: database[String(robloxUserId)]
   });
 });
 
-// -------------------
-// 📥 OBTENER PERFIL
-// -------------------
+// leer perfil
 app.get("/profile/:id", (req, res) => {
-  const user = database[req.params.id];
+  const user = database[String(req.params.id)];
 
   if (!user) {
     return res.json({ ok: false });
   }
 
-  res.json({ ok: true, profile: user });
+  res.json({
+    ok: true,
+    profile: user
+  });
 });
 
-// -------------------
-// 🚀 START SERVER
-// -------------------
 app.listen(PORT, () => {
   console.log(`🚀 API lista en puerto ${PORT}`);
 });
